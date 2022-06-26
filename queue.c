@@ -6,6 +6,7 @@ void trigger_error(const char * msg) {
     fprintf(stderr, "Error: %s\n", msg);
 }
 
+
 int queue_size(queue_t * queue)
 {
     if (queue == NULL)
@@ -59,7 +60,6 @@ int queue_append (queue_t ** queue_ptr, queue_t *elem)
         return 3;
     }
         
-
     queue_t * queue = *queue_ptr;
 
     if (queue == NULL)
