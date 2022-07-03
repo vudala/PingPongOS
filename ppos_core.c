@@ -14,12 +14,17 @@ void ppos_init()
     // inicializa os valores da main task
     Main_Task.id = 0;
     Main_Task.context = malloc(sizeof(ucontext_t));
+    if (!Main_Task.context) {
+        perror("Error while allocating memory for the main context: ");
+        exit(-1);
+    }
     getcontext(Main_Task.context);
 
     Current_Task = &Main_Task;
 
     setvbuf (stdout, 0, _IONBF, 0);
 }
+
 
 int task_create (task_t * task, void (*start_routine)(void *), void * arg)
 {
@@ -47,12 +52,20 @@ int task_create (task_t * task, void (*start_routine)(void *), void * arg)
 
     makecontext(task->context, (void*) start_routine, 1, arg);
 
+    #ifdef DEBUG
+    printf ("task_create: criou tarefa %d\n", task->id) ;
+    #endif
+
     return task->id;
 }
 
 
 int task_switch (task_t * task)
 {
+    #ifdef DEBUG
+    printf ("task_switch: trocando tarefa %d -> %d\n", task_id(), task->id) ;
+    #endif
+
     // variavel auxiliar pra nao perder o ponteiro salvo em Current_Task
     ucontext_t * aux = Current_Task->context;
     Current_Task = task;
@@ -63,6 +76,9 @@ int task_switch (task_t * task)
 
 void task_exit (int exit_code)
 {
+    #ifdef DEBUG
+    printf ("task_exit: encerrando tarefa %d\n", task_id()) ;
+    #endif
     task_switch(&Main_Task);
 }
 
