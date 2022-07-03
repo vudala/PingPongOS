@@ -20,7 +20,6 @@ int queue_size(queue_t * queue)
         next = next->next;
     } while (next != queue);
     
-
     return counter;
 }
 

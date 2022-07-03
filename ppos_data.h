@@ -13,21 +13,23 @@
 
 enum TASK_STATUS {
   READY = 1,
+  DONE,
   RUNNING,
   SUSPENDED
 };
 
 enum ERROR_CODE {
-  TASK_CREATE_FAILURE = -288
+  TASK_CREATE_FAILURE = -288,
+  UNEXPECTED_BEHAVIOUR
 };
 
 // Estrutura que define um Task Control Block (TCB)
 typedef struct task_t
 {
   struct task_t *prev, *next ;	// ponteiros para usar em filas
-  int id ;				              // identificador da tarefa
+  unsigned int id ;				              // identificador da tarefa
   ucontext_t * context ;			    // contexto armazenado da tarefa
-  enum TASK_STATUS status ;			          // pronta, rodando, suspensa  (0, 1, )
+  unsigned int status ;			          // pronta, rodando, suspensa  (0, 1, )
   short preemptable ;			      // pode ser preemptada?
    // ... (outros campos serão adicionados mais tarde)
 } task_t ;
