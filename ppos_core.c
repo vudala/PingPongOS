@@ -9,58 +9,87 @@ int Id_Counter = 1;
 
 task_t Main_Task, Dispatcher_Task;
 task_t * Current_Task = NULL;
-task_t * Tasks_Queue = NULL;
+
+// as filas de task
+task_t * Ready_Tasks = NULL;
+task_t * Running_Tasks = NULL;
 
 task_t * scheduler()
 {
-    task_t * task_selected = Tasks_Queue;
+    task_t * task_selected = Ready_Tasks;
+    queue_remove((queue_t **) &Ready_Tasks, (queue_t*) task_selected);
 
-    while (task_selected->status == RUNNING)
-        task_selected = task_selected->next;
-
+    #ifdef DEBUG
+    printf ("scheduler: tarefa %d selecionada\n", task_selected->id) ;
+    #endif
     return task_selected;
 }
+
 
 void prele(task_t * el) {
     printf("%d ", el->id);
 }
 
+
 void dispatcher(void * arg)
 {
+    #ifdef DEBUG
+    printf ("dispatcher iniciado\n") ;
+    #endif
     task_t * next = NULL;
-    while(queue_size((queue_t*) Tasks_Queue) > 0)
+    while(Ready_Tasks || Running_Tasks)
     {
         next = scheduler();
         if (next) {
+            queue_append((queue_t **) &Running_Tasks, (queue_t*) next);
+
+            #ifdef DEBUG
+            queue_print(NULL, (queue_t*) Ready_Tasks,(void*) prele);
+            queue_print(NULL, (queue_t*) Running_Tasks,(void*) prele);
+            #endif
+
+            next->status = RUNNING;
             task_switch(next);
             switch (next->status)
             {
             case READY:
-                // faz nada
+                perror("Error while handling tasks.");
+                exit(UNEXPECTED_BEHAVIOUR);
                 break;
             case RUNNING:
-                // isso não deve acontecer
+                queue_remove((queue_t **) &Running_Tasks, (queue_t*) next);
+                queue_append((queue_t **) &Ready_Tasks, (queue_t*) next);
+                next->status = READY;
                 break;
             case SUSPENDED:
-                queue_remove((queue_t **) &Tasks_Queue, (queue_t*) next);
-                queue_append((queue_t **) &Tasks_Queue, (queue_t*) next);
+                // a ser implementado no futuro
                 break;
             case DONE:
-                queue_remove((queue_t **) &Tasks_Queue, (queue_t*) next);
+                queue_remove((queue_t **) &Running_Tasks, (queue_t*) next);
                 break;
             default:
-
+                perror("Error while handling tasks.");
+                exit(UNEXPECTED_BEHAVIOUR);
                 break;
             }
         }
     }
-    task_exit(0);
+    #ifdef DEBUG
+    printf ("dispatcher encerrado\nretornando para a main\n") ;
+    #endif
+    task_switch(&Main_Task);
 }
 
 
-void ppos_init()
+void create_dispatcher_task()
 {
-    // inicializa os valores da main task
+    task_create(&Dispatcher_Task, dispatcher, NULL);
+    queue_remove((queue_t **) &Ready_Tasks, (queue_t*) &Dispatcher_Task);
+}
+
+
+void create_main_task()
+{
     Main_Task.id = 0;
     Main_Task.context = malloc(sizeof(ucontext_t));
     if (!Main_Task.context) {
@@ -68,8 +97,13 @@ void ppos_init()
         exit(UNEXPECTED_BEHAVIOUR);
     }
     getcontext(Main_Task.context);
+}
 
-    task_create(&Dispatcher_Task, dispatcher, NULL);
+
+void ppos_init()
+{
+    create_main_task();
+    create_dispatcher_task();
 
     Current_Task = &Main_Task;
 
@@ -80,9 +114,9 @@ void ppos_init()
 int task_create (task_t * task, void (*start_routine)(void *), void * arg)
 {
     task->id = Id_Counter++;
-    task->status = READY;
     task->prev = NULL;
     task->next = NULL;
+    task->preemptable = 0;
     task->context = malloc(sizeof(ucontext_t));
 
     getcontext(task->context);
@@ -107,7 +141,8 @@ int task_create (task_t * task, void (*start_routine)(void *), void * arg)
     printf ("task_create: criou tarefa %d\n", task->id) ;
     #endif
 
-    queue_append((queue_t **) &Tasks_Queue, (queue_t *) task);
+    task->status = READY;
+    queue_append((queue_t **) &Ready_Tasks, (queue_t *) task);
 
     return task->id;
 }
@@ -118,9 +153,6 @@ int task_switch (task_t * task)
     #ifdef DEBUG
     printf ("task_switch: trocando tarefa %d -> %d\n", task_id(), task->id) ;
     #endif
-
-    Current_Task->status = SUSPENDED;
-    task->status = RUNNING;
 
     // variavel auxiliar pra nao perder o ponteiro salvo em Current_Task
     ucontext_t * aux = Current_Task->context;
@@ -136,7 +168,7 @@ void task_exit (int exit_code)
     printf ("task_exit: encerrando tarefa %d\n", task_id()) ;
     #endif
     Current_Task->status = DONE;
-    task_switch(&Main_Task);
+    task_switch(&Dispatcher_Task);
 }
 
 
