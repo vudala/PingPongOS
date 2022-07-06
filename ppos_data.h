@@ -12,7 +12,8 @@
 #define STACKSIZE 64*1024
 
 enum TASK_STATUS {
-  READY = 1,
+  NEW = 1,
+  READY,
   DONE,
   RUNNING,
   SUSPENDED
@@ -28,7 +29,7 @@ typedef struct task_t
 {
   struct task_t *prev, *next ;	// ponteiros para usar em filas
   unsigned int id ;				              // identificador da tarefa
-  ucontext_t * context ;			    // contexto armazenado da tarefa
+  ucontext_t context ;			    // contexto armazenado da tarefa
   unsigned int status ;			          // pronta, rodando, suspensa  (0, 1, )
   short preemptable ;			      // pode ser preemptada?
    // ... (outros campos serão adicionados mais tarde)
