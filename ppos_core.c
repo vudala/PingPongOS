@@ -16,11 +16,12 @@ task_t * Ready_Tasks = NULL;
 
 void task_destroy(task_t * task)
 {
-    free(task->context.uc_stack.ss_sp);
+    if (task)
+        free(task->context.uc_stack.ss_sp);
 }
 
 
-task_t * scheduler()
+task_t * fcfs_scheduler()
 {
     task_t * task_selected = Ready_Tasks;
     Ready_Tasks = task_selected->next;
@@ -29,31 +30,31 @@ task_t * scheduler()
     queue_remove((queue_t **) &Ready_Tasks, (queue_t *) task_selected);
     queue_append((queue_t **) &Ready_Tasks, (queue_t *) task_selected);
 
-    #ifdef DEBUG
-    printf ("scheduler: tarefa %d selecionada\n", task_selected->id) ;
-    #endif
     return task_selected;
 }
 
+task_t * (*scheduler)() = fcfs_scheduler;
 
 void dispatcher(void * arg)
 {
     #ifdef DEBUG
     printf ("dispatcher iniciado\n") ;
     #endif
+
     task_t * next = NULL;
     while(Ready_Tasks)
     {
         next = scheduler();
+
+        #ifdef DEBUG
+        printf ("scheduler: tarefa %d selecionada\n", next->id) ;
+        #endif
+
         if (next) {
             next->status = RUNNING;
             task_switch(next);
             switch (next->status)
             {
-            case READY:
-                perror("Error while handling tasks.");
-                exit(UNEXPECTED_BEHAVIOUR);
-                break;
             case RUNNING:
                 next->status = READY;
                 break;
@@ -65,7 +66,6 @@ void dispatcher(void * arg)
                 task_destroy(next);
                 break;
             default:
-                perror("Error while handling tasks.");
                 exit(UNEXPECTED_BEHAVIOUR);
                 break;
             }
@@ -74,7 +74,8 @@ void dispatcher(void * arg)
     #ifdef DEBUG
     printf ("dispatcher encerrado\nretornando para a main\n") ;
     #endif
-    task_switch(&Main_Task);
+
+    task_exit(0);
 }
 
 
@@ -104,6 +105,9 @@ void ppos_init()
 
 int task_create(task_t * task, void (*start_routine)(void *), void * arg)
 {
+    if (!task || !start_routine)
+        return TASK_CREATE_FAILURE;
+
     task->id = Id_Counter++;
     task->prev = NULL;
     task->next = NULL;
@@ -120,10 +124,7 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
         task->context.uc_link = 0 ;
     }
     else
-    {
-        perror ("Error while creating the stack: ") ;
         return TASK_CREATE_FAILURE;
-    }
 
     task->status = NEW;
 
@@ -143,6 +144,9 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
 
 int task_switch(task_t * task)
 {
+    if (!task) 
+        return -1;
+
     #ifdef DEBUG
     printf ("task_switch: trocando tarefa %d -> %d\n", task_id(), task->id) ;
     #endif
