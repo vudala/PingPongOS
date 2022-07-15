@@ -10,7 +10,7 @@ int Id_Counter = 1;
 task_t Main_Task, Dispatcher_Task;
 task_t * Current_Task = NULL;
 
-// as filas de task
+// a fila de tasks
 task_t * Ready_Tasks = NULL;
 
 
@@ -210,6 +210,9 @@ void task_yield()
 
 void task_setprio(task_t * task, int prio)
 {
+    if (prio < -20 || prio > 20)
+        return;
+
     if (task) {
         task->static_prio = prio;
         task->dinamic_prio = prio;
