@@ -10,6 +10,7 @@
 #include <ucontext.h>		// biblioteca POSIX de trocas de contexto
 
 #define STACKSIZE 64*1024
+#define AGING_ALPHA 1
 
 enum TASK_STATUS {
   NEW = 1,
@@ -32,6 +33,8 @@ typedef struct task_t
   ucontext_t context ;			    // contexto armazenado da tarefa
   unsigned int status ;			          // pronta, rodando, suspensa  (0, 1, )
   short preemptable ;			      // pode ser preemptada?
+  int static_prio;
+  int dinamic_prio;
    // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 

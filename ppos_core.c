@@ -33,7 +33,26 @@ task_t * fcfs_scheduler()
     return task_selected;
 }
 
-task_t * (*scheduler)() = fcfs_scheduler;
+
+task_t * prio_scheduler()
+{
+    task_t * task = Ready_Tasks;
+    task_t * oldest = Ready_Tasks;
+    do {
+        task->dinamic_prio -= AGING_ALPHA;
+        if (oldest->dinamic_prio > task->dinamic_prio)
+            oldest = task;
+        task = task->next;
+    } while (task != Ready_Tasks);
+
+    oldest->dinamic_prio = oldest->static_prio;
+
+    return oldest;
+}
+
+
+task_t * (*scheduler)() = prio_scheduler;
+
 
 void dispatcher(void * arg)
 {
@@ -82,6 +101,7 @@ void dispatcher(void * arg)
 void create_dispatcher_task()
 {
     task_create(&Dispatcher_Task, dispatcher, NULL);
+    Dispatcher_Task.preemptable = 0;
 }
 
 
@@ -89,6 +109,7 @@ void create_main_task()
 {
     Main_Task.id = 0;
     getcontext(&(Main_Task.context));
+    Dispatcher_Task.preemptable = 0;
 }
 
 
@@ -111,7 +132,9 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     task->id = Id_Counter++;
     task->prev = NULL;
     task->next = NULL;
-    task->preemptable = 0;
+    task->static_prio = 0;
+    task->dinamic_prio = 0;
+    task->preemptable = 1;
 
     getcontext(&(task->context));
 
@@ -182,4 +205,26 @@ int task_id()
 void task_yield()
 {
     task_switch(&Dispatcher_Task);
+}
+
+
+void task_setprio(task_t * task, int prio)
+{
+    if (task) {
+        task->static_prio = prio;
+        task->dinamic_prio = prio;
+    }
+    else {
+        Current_Task->static_prio = prio;
+        Current_Task->dinamic_prio = prio;
+    }
+}
+
+
+int task_getprio(task_t * task)
+{
+    if (task)
+        return task->static_prio;
+    else
+        return Current_Task->static_prio;
 }
