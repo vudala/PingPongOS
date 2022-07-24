@@ -11,6 +11,7 @@
 
 #define STACKSIZE 64*1024
 #define AGING_ALPHA 1
+#define QUANTUM 20
 
 enum TASK_STATUS {
   NEW = 1,

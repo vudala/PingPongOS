@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/time.h>
 
 int Id_Counter = 1;
 
@@ -13,6 +15,15 @@ task_t * Current_Task = NULL;
 // a fila de tasks
 task_t * Ready_Tasks = NULL;
 
+unsigned short Locked = 1;
+
+int tick_counter = QUANTUM;
+struct sigaction action;
+struct itimerval timer;
+
+void lock() { Locked = 1; }
+
+void unlock() { Locked = 0; }
 
 void task_destroy(task_t * task)
 {
@@ -38,13 +49,14 @@ task_t * prio_scheduler()
 {
     task_t * task = Ready_Tasks;
     task_t * oldest = Ready_Tasks;
+
     do {
         task->dinamic_prio -= AGING_ALPHA;
         if (oldest->dinamic_prio > task->dinamic_prio)
             oldest = task;
         task = task->next;
     } while (task != Ready_Tasks);
-
+    
     oldest->dinamic_prio = oldest->static_prio;
 
     return oldest;
@@ -56,6 +68,7 @@ task_t * (*scheduler)() = prio_scheduler;
 
 void dispatcher(void * arg)
 {
+    lock();
     #ifdef DEBUG
     printf ("dispatcher iniciado\n") ;
     #endif
@@ -71,7 +84,9 @@ void dispatcher(void * arg)
 
         if (next) {
             next->status = RUNNING;
+            tick_counter = QUANTUM;
             task_switch(next);
+            lock();
             switch (next->status)
             {
             case RUNNING:
@@ -113,19 +128,49 @@ void create_main_task()
 }
 
 
+void tick_handler(int signum)
+{
+    if (Locked) return;
+    
+    if (tick_counter == 0)
+        task_yield();
+    else
+        tick_counter -= 1;
+}
+
 void ppos_init()
 {
+    lock();
+
     create_main_task();
     create_dispatcher_task();
 
     Current_Task = &Main_Task;
 
     setvbuf (stdout, 0, _IONBF, 0);
+
+    action.sa_handler = tick_handler;
+    sigemptyset(&action.sa_mask) ;
+    action.sa_flags = 0 ;
+    if (sigaction(SIGALRM, &action, 0) < 0)
+        exit(UNEXPECTED_BEHAVIOUR);
+
+    timer.it_value.tv_usec = 1;
+    timer.it_value.tv_sec  = 0;
+    timer.it_interval.tv_usec = 1000;
+    timer.it_interval.tv_sec  = 0;
+
+    if (setitimer (ITIMER_REAL, &timer, 0) < 0)
+        exit(UNEXPECTED_BEHAVIOUR);
+
+    unlock();
 }
 
 
 int task_create(task_t * task, void (*start_routine)(void *), void * arg)
 {
+    lock();
+
     if (!task || !start_routine)
         return TASK_CREATE_FAILURE;
 
@@ -167,7 +212,7 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
 
 int task_switch(task_t * task)
 {
-    if (!task) 
+    if (!task)
         return -1;
 
     #ifdef DEBUG
@@ -178,12 +223,15 @@ int task_switch(task_t * task)
     ucontext_t * aux = &(Current_Task->context);
     Current_Task = task;
 
+    if (task != &Dispatcher_Task) unlock();
     return swapcontext(aux, &(task->context));
 }
 
 
 void task_exit(int exit_code)
 {
+    lock();
+
     #ifdef DEBUG
     printf ("task_exit: encerrando tarefa %d\n", task_id()) ;
     #endif
@@ -191,8 +239,9 @@ void task_exit(int exit_code)
 
     if (Current_Task != &Dispatcher_Task)
         task_switch(&Dispatcher_Task);
-    else
+    else {
         task_switch(&Main_Task);
+    }
 }
 
 
@@ -204,6 +253,7 @@ int task_id()
 
 void task_yield()
 {
+    lock();
     task_switch(&Dispatcher_Task);
 }
 
