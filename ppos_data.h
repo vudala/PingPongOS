@@ -1,7 +1,3 @@
-// PingPongOS - PingPong Operating System
-// Prof. Carlos A. Maziero, DINF UFPR
-// Versão 1.4 -- Janeiro de 2022
-
 // Estruturas de dados internas do sistema operacional
 
 #ifndef __PPOS_DATA__
@@ -30,13 +26,14 @@ enum ERROR_CODE {
 typedef struct task_t
 {
   struct task_t *prev, *next ;	// ponteiros para usar em filas
-  unsigned int id ;				              // identificador da tarefa
+  unsigned int id ;				      // identificador da tarefa
   ucontext_t context ;			    // contexto armazenado da tarefa
-  unsigned int status ;			          // pronta, rodando, suspensa  (0, 1, )
-  short preemptable ;			      // pode ser preemptada?
-  int static_prio;
-  int dinamic_prio;
-   // ... (outros campos serão adicionados mais tarde)
+  unsigned int status ;			    // pronta, rodando, suspensa  (0, 1, )
+  int static_prio;              // prioridade estática
+  int dinamic_prio;             // prioridade dinâmica
+  unsigned int birth_time;      // horário de criação
+  unsigned int lifetime;        // tempo de vida
+  unsigned int activations;     // quantas vezes foi ativada
 } task_t ;
 
 // estrutura que define um semáforo

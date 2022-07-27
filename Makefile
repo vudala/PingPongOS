@@ -14,6 +14,9 @@ all: $(OBJS)
 %.o: %.c
 	$(CC) $(FLAGS) -c $< $(LIBS)
 
+run:
+	./program
+
 clean:
 	@$(RM) $(OBJS)
 

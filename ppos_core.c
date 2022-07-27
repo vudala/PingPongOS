@@ -7,23 +7,27 @@
 #include <signal.h>
 #include <sys/time.h>
 
+// Gerenciamento de tasks
 int Id_Counter = 1;
-
 task_t Main_Task, Dispatcher_Task;
 task_t * Current_Task = NULL;
 
-// a fila de tasks
+// Fila de tasks
 task_t * Ready_Tasks = NULL;
 
-unsigned short Locked = 1;
+// Relógio do sistema
+unsigned int Current_Time;
 
-int tick_counter = QUANTUM;
+// Preempção por tempo
+int Tick_Counter = QUANTUM;
 struct sigaction action;
 struct itimerval timer;
 
+// Kernel Big Lock
+unsigned short Locked = 1;
 void lock() { Locked = 1; }
-
 void unlock() { Locked = 0; }
+
 
 void task_destroy(task_t * task)
 {
@@ -74,8 +78,7 @@ void dispatcher(void * arg)
     #endif
 
     task_t * next = NULL;
-    while(Ready_Tasks)
-    {
+    while(Ready_Tasks) {
         next = scheduler();
 
         #ifdef DEBUG
@@ -84,9 +87,12 @@ void dispatcher(void * arg)
 
         if (next) {
             next->status = RUNNING;
-            tick_counter = QUANTUM;
+            Tick_Counter = QUANTUM;
+            unsigned int start_time = systime();
             task_switch(next);
             lock();
+            next->lifetime += systime() - start_time;
+
             switch (next->status)
             {
             case RUNNING:
@@ -116,7 +122,6 @@ void dispatcher(void * arg)
 void create_dispatcher_task()
 {
     task_create(&Dispatcher_Task, dispatcher, NULL);
-    Dispatcher_Task.preemptable = 0;
 }
 
 
@@ -124,18 +129,18 @@ void create_main_task()
 {
     Main_Task.id = 0;
     getcontext(&(Main_Task.context));
-    Dispatcher_Task.preemptable = 0;
 }
 
 
 void tick_handler(int signum)
 {
+    Current_Time += 1;
     if (Locked) return;
     
-    if (tick_counter == 0)
+    if (Tick_Counter == 0)
         task_yield();
     else
-        tick_counter -= 1;
+        Tick_Counter -= 1;
 }
 
 void ppos_init()
@@ -163,6 +168,8 @@ void ppos_init()
     if (setitimer (ITIMER_REAL, &timer, 0) < 0)
         exit(UNEXPECTED_BEHAVIOUR);
 
+    Current_Time = 0;
+
     unlock();
 }
 
@@ -179,13 +186,13 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     task->next = NULL;
     task->static_prio = 0;
     task->dinamic_prio = 0;
-    task->preemptable = 1;
+    task->birth_time = systime();
+    task->lifetime = 0;
 
     getcontext(&(task->context));
 
     void * stack = malloc (STACKSIZE) ;
-    if (stack)
-    {
+    if (stack) {
         task->context.uc_stack.ss_sp = stack ;
         task->context.uc_stack.ss_size = STACKSIZE ;
         task->context.uc_stack.ss_flags = 0 ;
@@ -219,7 +226,8 @@ int task_switch(task_t * task)
     printf ("task_switch: trocando tarefa %d -> %d\n", task_id(), task->id) ;
     #endif
 
-    // variavel auxiliar pra nao perder o ponteiro salvo em Current_Task
+    task->activations += 1;
+
     ucontext_t * aux = &(Current_Task->context);
     Current_Task = task;
 
@@ -232,16 +240,24 @@ void task_exit(int exit_code)
 {
     lock();
 
+    printf(
+        "Task %d exit: execution time %d ms, processor time %d ms, %d activations\n",
+        Current_Task->id,
+        systime() - Current_Task->birth_time,
+        Current_Task->lifetime,
+        Current_Task->activations
+    );
+
     #ifdef DEBUG
     printf ("task_exit: encerrando tarefa %d\n", task_id()) ;
     #endif
+
     Current_Task->status = DONE;
 
     if (Current_Task != &Dispatcher_Task)
         task_switch(&Dispatcher_Task);
-    else {
+    else
         task_switch(&Main_Task);
-    }
 }
 
 
@@ -280,4 +296,10 @@ int task_getprio(task_t * task)
         return task->static_prio;
     else
         return Current_Task->static_prio;
+}
+
+
+unsigned int systime()
+{
+    return Current_Time;
 }
