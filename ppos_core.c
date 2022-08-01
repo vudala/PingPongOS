@@ -20,8 +20,6 @@ unsigned int Current_Time;
 
 // Preempção por tempo
 int Tick_Counter = QUANTUM;
-struct sigaction action;
-struct itimerval timer;
 
 // Kernel Big Lock
 unsigned short Locked = 1;
@@ -154,12 +152,14 @@ void ppos_init()
 
     setvbuf (stdout, 0, _IONBF, 0);
 
+    struct sigaction action;
     action.sa_handler = tick_handler;
     sigemptyset(&action.sa_mask) ;
     action.sa_flags = 0 ;
     if (sigaction(SIGALRM, &action, 0) < 0)
         exit(UNEXPECTED_BEHAVIOUR);
 
+    struct itimerval timer;
     timer.it_value.tv_usec = 1;
     timer.it_value.tv_sec  = 0;
     timer.it_interval.tv_usec = 1000;
