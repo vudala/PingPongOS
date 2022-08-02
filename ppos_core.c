@@ -26,6 +26,11 @@ unsigned short Locked = 1;
 void lock() { Locked = 1; } // impede que a preempcao seja efetuada quando lock esta up
 void unlock() { Locked = 0; } // desativa a lock
 
+unsigned int systime()
+{
+    return Current_Time;
+}
+
 
 void task_destroy(task_t * task)
 {
@@ -203,6 +208,7 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     task->dinamic_prio = 0;
     task->birth_time = systime();
     task->lifetime = 0;
+    task->awaiting_tasks = NULL;
 
     task->status = NEW;
 
@@ -262,6 +268,18 @@ int task_switch(task_t * task)
 }
 
 
+void task_resume(task_t * task, task_t ** queue)
+{
+    lock();
+
+    queue_remove((queue_t **) queue, (queue_t*) task);
+    task->status = READY;
+    queue_append((queue_t **) &Ready_Tasks, (queue_t*) task);
+
+    unlock();
+}
+
+
 void task_exit(int exit_code)
 {
     lock();
@@ -281,6 +299,12 @@ void task_exit(int exit_code)
 
     // sinaliza pro dispatcher que a task ja pode ser removida da fila
     Current_Task->status = DONE;
+
+    Current_Task->exit_code = exit_code;
+
+    // enquanto houver tasks, acorda a primeira da fila e a remove
+    while(Current_Task->awaiting_tasks)
+        task_resume(Current_Task->awaiting_tasks, &(Current_Task->awaiting_tasks));
 
     task_switch(&Dispatcher_Task);
 }
@@ -324,7 +348,29 @@ int task_getprio(task_t * task)
 }
 
 
-unsigned int systime()
+void task_suspend(task_t ** queue)
 {
-    return Current_Time;
+    lock();
+
+    queue_remove((queue_t **) &Ready_Tasks, (queue_t*) Current_Task);
+    Current_Task->status = SUSPENDED;
+    queue_append((queue_t **) queue, (queue_t*) Current_Task);
+
+    task_yield();
+}
+
+
+int task_join(task_t * task)
+{
+    lock();
+
+    if (!task) { unlock(); return -1; }
+        
+    if (task->status == DONE) { unlock(); return task->exit_code; }
+
+    task_suspend(&(task->awaiting_tasks));
+
+    unlock();
+
+    return task->exit_code;
 }
