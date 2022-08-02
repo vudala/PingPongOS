@@ -8,7 +8,7 @@
 #include <sys/time.h>
 
 // Gerenciamento de tasks
-int Id_Counter = 1;
+int Id_Counter = 0;
 task_t Main_Task, Dispatcher_Task;
 task_t * Current_Task = NULL;
 
@@ -23,13 +23,13 @@ int Tick_Counter = QUANTUM;
 
 // Kernel Big Lock
 unsigned short Locked = 1;
-void lock() { Locked = 1; }
-void unlock() { Locked = 0; }
+void lock() { Locked = 1; } // impede que a preempcao seja efetuada quando lock esta up
+void unlock() { Locked = 0; } // desativa a lock
 
 
 void task_destroy(task_t * task)
 {
-    if (task)
+    if (task && task->context.uc_stack.ss_sp)
         free(task->context.uc_stack.ss_sp);
 }
 
@@ -125,8 +125,7 @@ void create_dispatcher_task()
 
 void create_main_task()
 {
-    Main_Task.id = 0;
-    getcontext(&(Main_Task.context));
+    task_create(&Main_Task, NULL, NULL);
 }
 
 
@@ -141,36 +140,52 @@ void tick_handler(int signum)
         Tick_Counter -= 1;
 }
 
-void ppos_init()
+
+void set_tick_handler()
 {
-    lock();
-
-    create_main_task();
-    create_dispatcher_task();
-
-    Current_Task = &Main_Task;
-
-    setvbuf (stdout, 0, _IONBF, 0);
-
     struct sigaction action;
+
     action.sa_handler = tick_handler;
     sigemptyset(&action.sa_mask) ;
     action.sa_flags = 0 ;
+
     if (sigaction(SIGALRM, &action, 0) < 0)
         exit(UNEXPECTED_BEHAVIOUR);
+}
 
+
+void set_timer()
+{
     struct itimerval timer;
+
+    // quanto tempo para disparar o primeiro tick
     timer.it_value.tv_usec = 1;
     timer.it_value.tv_sec  = 0;
+    // intervalo entre os ticks
     timer.it_interval.tv_usec = 1000;
     timer.it_interval.tv_sec  = 0;
 
     if (setitimer (ITIMER_REAL, &timer, 0) < 0)
         exit(UNEXPECTED_BEHAVIOUR);
+}
+
+
+void ppos_init()
+{
+    lock();
+
+    setvbuf (stdout, 0, _IONBF, 0);
+
+    create_main_task();
+    create_dispatcher_task();
+
+    set_tick_handler();
+    set_timer();
 
     Current_Time = 0;
 
-    unlock();
+    Current_Task = &Main_Task;
+    task_yield();
 }
 
 
@@ -178,7 +193,7 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
 {
     lock();
 
-    if (!task || !start_routine)
+    if (!task)
         return TASK_CREATE_FAILURE;
 
     task->id = Id_Counter++;
@@ -189,30 +204,41 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     task->birth_time = systime();
     task->lifetime = 0;
 
-    getcontext(&(task->context));
-
-    void * stack = malloc (STACKSIZE) ;
-    if (stack) {
-        task->context.uc_stack.ss_sp = stack ;
-        task->context.uc_stack.ss_size = STACKSIZE ;
-        task->context.uc_stack.ss_flags = 0 ;
-        task->context.uc_link = 0 ;
-    }
-    else
-        return TASK_CREATE_FAILURE;
-
     task->status = NEW;
 
-    makecontext(&(task->context), (void*) start_routine, 1, arg);
+    // cria uma stack e seta o contexto para a funcao do parametro
+    if (task != &Main_Task) {
+        if (start_routine == NULL)
+            return TASK_CREATE_FAILURE;
 
+        getcontext(&(task->context));
+
+        void * stack = malloc (STACKSIZE) ;
+        if (stack) {
+            task->context.uc_stack.ss_sp = stack ;
+            task->context.uc_stack.ss_size = STACKSIZE ;
+            task->context.uc_stack.ss_flags = 0 ;
+            task->context.uc_link = 0 ;
+        }
+        else
+            return TASK_CREATE_FAILURE;
+
+        makecontext(&(task->context), (void*) start_routine, 1, arg);
+    }
+    // se for a main continua com o contexto atual
+    else
+        task->context.uc_stack.ss_sp = NULL;
+        
     #ifdef DEBUG
     printf ("task_create: criou tarefa %d\n", task->id) ;
     #endif
 
+    // adiciona na fila de prontas
     task->status = READY;
     if (task != &Dispatcher_Task)
         queue_append((queue_t **) &Ready_Tasks, (queue_t *) task);
 
+    unlock();
     return task->id;
 }
 
@@ -240,6 +266,7 @@ void task_exit(int exit_code)
 {
     lock();
 
+    // imprime as medicoes de tempo da task
     printf(
         "Task %d exit: execution time %d ms, processor time %d ms, %d activations\n",
         Current_Task->id,
@@ -252,12 +279,10 @@ void task_exit(int exit_code)
     printf ("task_exit: encerrando tarefa %d\n", task_id()) ;
     #endif
 
+    // sinaliza pro dispatcher que a task ja pode ser removida da fila
     Current_Task->status = DONE;
 
-    if (Current_Task != &Dispatcher_Task)
-        task_switch(&Dispatcher_Task);
-    else
-        task_switch(&Main_Task);
+    task_switch(&Dispatcher_Task);
 }
 
 
