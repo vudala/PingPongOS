@@ -23,8 +23,8 @@ int Tick_Counter = QUANTUM;
 
 // Kernel Big Lock
 unsigned short Locked = 1;
-void lock() { Locked = 1; } // impede que a preempcao seja efetuada quando lock esta up
-void unlock() { Locked = 0; } // desativa a lock
+void lock() { Locked = 1; }     // impede que a preempcao seja efetuada quando lock esta up
+void unlock() { Locked = 0; }   // desativa a lock
 
 unsigned int systime()
 {
@@ -101,9 +101,6 @@ void dispatcher(void * arg)
             case RUNNING:
                 next->status = READY;
                 break;
-            case SUSPENDED:
-                // a ser implementado no futuro
-                break;
             case DONE:
                 queue_remove((queue_t **) &Ready_Tasks, (queue_t *) next);
                 task_destroy(next);
@@ -146,6 +143,7 @@ void tick_handler(int signum)
 }
 
 
+// define qual acao deve ser tomada em cada tick de clock
 void set_tick_handler()
 {
     struct sigaction action;
@@ -159,6 +157,7 @@ void set_tick_handler()
 }
 
 
+// define o comportamento do clock
 void set_timer()
 {
     struct itimerval timer;
@@ -188,8 +187,8 @@ void ppos_init()
     set_timer();
 
     Current_Time = 0;
-
     Current_Task = &Main_Task;
+
     task_yield();
 }
 
@@ -270,13 +269,9 @@ int task_switch(task_t * task)
 
 void task_resume(task_t * task, task_t ** queue)
 {
-    lock();
-
     queue_remove((queue_t **) queue, (queue_t*) task);
     task->status = READY;
     queue_append((queue_t **) &Ready_Tasks, (queue_t*) task);
-
-    unlock();
 }
 
 
@@ -325,8 +320,9 @@ void task_yield()
 
 void task_setprio(task_t * task, int prio)
 {
-    if (prio < -20 || prio > 20)
-        return;
+    lock();
+
+    if (prio < -20 || prio > 20) {unlock(); return; }
 
     if (task) {
         task->static_prio = prio;
@@ -336,6 +332,8 @@ void task_setprio(task_t * task, int prio)
         Current_Task->static_prio = prio;
         Current_Task->dinamic_prio = prio;
     }
+
+    unlock();
 }
 
 
@@ -350,8 +348,6 @@ int task_getprio(task_t * task)
 
 void task_suspend(task_t ** queue)
 {
-    lock();
-
     queue_remove((queue_t **) &Ready_Tasks, (queue_t*) Current_Task);
     Current_Task->status = SUSPENDED;
     queue_append((queue_t **) queue, (queue_t*) Current_Task);
@@ -364,8 +360,13 @@ int task_join(task_t * task)
 {
     lock();
 
+    // impede join em tarefa inexistente
     if (!task) { unlock(); return -1; }
-        
+
+    // impede deadlock
+    if (task == Current_Task) { unlock(); return -1; }
+    
+    // se ja terminou apenas retorna o exit code
     if (task->status == DONE) { unlock(); return task->exit_code; }
 
     task_suspend(&(task->awaiting_tasks));
