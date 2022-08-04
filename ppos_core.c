@@ -76,6 +76,7 @@ task_t * (*scheduler)() = prio_scheduler;
 void dispatcher(void * arg)
 {
     lock();
+    unsigned int last_time = systime();
     #ifdef DEBUG
     printf ("dispatcher iniciado\n") ;
     #endif
@@ -92,9 +93,11 @@ void dispatcher(void * arg)
             next->status = RUNNING;
             Tick_Counter = QUANTUM;
             unsigned int start_time = systime();
+            Dispatcher_Task.lifetime += last_time - systime();
             task_switch(next);
             lock();
             next->lifetime += systime() - start_time;
+            last_time = systime();
 
             switch (next->status)
             {
