@@ -34,7 +34,7 @@ typedef struct task_t
   unsigned int birth_time;        // horário de criação
   unsigned int lifetime;          // tempo de vida
   unsigned int activations;       // quantas vezes foi ativada
-  struct task_t * awaiting_tasks; // task que deram join
+  struct task_t * awaiting_tasks; // tasks que deram join
   int exit_code;                  // código de saída da tarefa
 } task_t ;
 
