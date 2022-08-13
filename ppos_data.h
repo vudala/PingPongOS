@@ -25,18 +25,18 @@ enum ERROR_CODE {
 // Estrutura que define um Task Control Block (TCB)
 typedef struct task_t
 {
-  struct task_t *prev, *next ;	  // ponteiros para usar em filas
-  unsigned id ;				            // identificador da tarefa
-  ucontext_t context ;			      // contexto armazenado da tarefa
-  unsigned status ;			          // pronta, rodando, suspensa  (0, 1, )
-  int static_prio;                // prioridade estática
-  int dinamic_prio;               // prioridade dinâmica
-  unsigned birth_time;            // horário de criação
-  unsigned lifetime;              // tempo de vida
-  unsigned activations;           // quantas vezes foi ativada
-  struct task_t * awaiting_tasks; // tasks que deram join
-  int exit_code;                  // código de saída da tarefa
-  unsigned waking_time;           // tempo restante de sleep
+  struct task_t   *prev, *next ;	  // ponteiros para usar em filas
+  unsigned        id ;				      // identificador da tarefa
+  ucontext_t      context ;			    // contexto armazenado da tarefa
+  unsigned        status ;			    // pronta, rodando, suspensa  (0, 1, )
+  int             static_prio;      // prioridade estática
+  int             dinamic_prio;     // prioridade dinâmica
+  unsigned        birth_time;       // horário de criação
+  unsigned        lifetime;         // tempo de vida
+  unsigned        activations;      // quantas vezes foi ativada
+  struct task_t   *awaiting_tasks;  // tasks que deram join
+  int             exit_code;        // código de saída da tarefa
+  unsigned        waking_time;      // tempo restante de sleep
 } task_t ;
 
 // estrutura que define um semáforo
