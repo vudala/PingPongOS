@@ -13,6 +13,10 @@ typedef struct item_t {
 } item_t;
 
 
+item_t * buffer = NULL;
+semaphore_t s_vaga, s_buffer, s_item;
+
+
 item_t * create_item(int v)
 {
     item_t * it = malloc(sizeof(item_t));
@@ -25,8 +29,6 @@ item_t * create_item(int v)
     return it;
 }
 
-item_t * buffer = NULL;
-semaphore_t s_vaga, s_buffer, s_item;
 
 int prod_id = 1;
 void produtor() {
@@ -48,6 +50,7 @@ void produtor() {
     }
     task_exit(0);
 }
+
 
 int cons_id = 1;
 void consumidor() {
@@ -73,6 +76,7 @@ void consumidor() {
 
 task_t produtor1, produtor2, produtor3;
 task_t consumidor1, consumidor2;
+
 
 int main() {
     srand(time(NULL));
