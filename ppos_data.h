@@ -36,13 +36,15 @@ typedef struct task_t
   unsigned        activations;      // quantas vezes foi ativada
   struct task_t   *awaiting_tasks;  // tasks que deram join
   int             exit_code;        // código de saída da tarefa
-  unsigned        waking_time;      // tempo restante de sleep
+  unsigned        waking_time;      // tempo que deve ser acordado
 } task_t ;
 
 // estrutura que define um semáforo
 typedef struct
 {
-  // preencher quando necessário
+  int counter;
+  task_t * queue;
+  int lock;
 } semaphore_t ;
 
 // estrutura que define um mutex

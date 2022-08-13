@@ -299,10 +299,12 @@ int task_switch(task_t * task)
 
 void task_resume(task_t * task, task_t ** queue)
 {
-    if (queue)
-        queue_remove((queue_t **) queue, (queue_t*) task);
-    task->status = READY;
-    queue_append((queue_t **) &Ready_Tasks, (queue_t*) task);
+    if (task) {
+        if (queue)
+            queue_remove((queue_t **) queue, (queue_t*) task);
+        task->status = READY;
+        queue_append((queue_t **) &Ready_Tasks, (queue_t*) task);
+    }
 }
 
 
@@ -415,10 +417,6 @@ void task_sleep(int t)
 {
     lock();
 
-    Current_Task->status = SUSPENDED;
     Current_Task->waking_time = systime( ) + t;
-    queue_remove((queue_t **) &Ready_Tasks, (queue_t*) Current_Task);
-    queue_append((queue_t **) &Sleeping_Tasks, (queue_t*) Current_Task);
-
-    task_yield();
+    task_suspend(&Sleeping_Tasks);
 }
