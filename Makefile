@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CC=gcc
-FLAGS=-Wall
+FLAGS=-Wall -g
 LIBS=
 SRC=$(wildcard *.c)
 OBJS=$(subst .c,.o,$(SRC))

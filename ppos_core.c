@@ -13,7 +13,9 @@ task_t Main_Task, Dispatcher_Task;
 task_t * Current_Task = NULL;
 
 // Fila de tasks
+unsigned int Tasks_Counter = 0;
 task_t * Ready_Tasks = NULL;
+task_t * Sleeping_Tasks = NULL;
 
 // Relógio do sistema
 unsigned int Current_Time;
@@ -57,20 +59,40 @@ task_t * prio_scheduler()
     task_t * task = Ready_Tasks;
     task_t * oldest = Ready_Tasks;
 
-    do {
-        task->dinamic_prio -= AGING_ALPHA;
-        if (oldest->dinamic_prio > task->dinamic_prio)
-            oldest = task;
-        task = task->next;
-    } while (task != Ready_Tasks);
-    
-    oldest->dinamic_prio = oldest->static_prio;
+    if (task) {
+        do {
+            task->dinamic_prio -= AGING_ALPHA;
+            if (oldest->dinamic_prio > task->dinamic_prio)
+                oldest = task;
+            task = task->next;
+        } while (task != Ready_Tasks);
+        
+        oldest->dinamic_prio = oldest->static_prio;
+    }
 
     return oldest;
 }
 
 
 task_t * (*scheduler)() = prio_scheduler;
+
+void update_sleeping()
+{
+    lock();
+
+    task_t * task = Sleeping_Tasks;
+    task_t * next = NULL;
+    if (task) {
+        do {
+            next = task->next;
+            if (task->waking_time <= systime())
+                task_resume(task, &Sleeping_Tasks);
+            task = next;
+        } while (task != Sleeping_Tasks && Sleeping_Tasks);
+    }
+        
+    unlock();
+}
 
 
 void dispatcher(void * arg)
@@ -82,7 +104,8 @@ void dispatcher(void * arg)
     #endif
 
     task_t * next = NULL;
-    while(Ready_Tasks) {
+    while(Tasks_Counter > 1) {
+        update_sleeping();
         next = scheduler();
 
         #ifdef DEBUG
@@ -93,7 +116,7 @@ void dispatcher(void * arg)
             next->status = RUNNING;
             Tick_Counter = QUANTUM;
             unsigned int start_time = systime();
-            Dispatcher_Task.lifetime += last_time - systime();
+            Dispatcher_Task.lifetime += systime() - last_time;
             task_switch(next);
             lock();
             next->lifetime += systime() - start_time;
@@ -107,6 +130,8 @@ void dispatcher(void * arg)
             case DONE:
                 queue_remove((queue_t **) &Ready_Tasks, (queue_t *) next);
                 task_destroy(next);
+                break;
+            case SUSPENDED:
                 break;
             default:
                 exit(UNEXPECTED_BEHAVIOUR);
@@ -246,6 +271,8 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     if (task != &Dispatcher_Task)
         queue_append((queue_t **) &Ready_Tasks, (queue_t *) task);
 
+    Tasks_Counter += 1;
+
     unlock();
     return task->id;
 }
@@ -304,6 +331,8 @@ void task_exit(int exit_code)
     // enquanto houver tasks, acorda a primeira da fila e a remove
     while(Current_Task->awaiting_tasks)
         task_resume(Current_Task->awaiting_tasks, &(Current_Task->awaiting_tasks));
+
+    Tasks_Counter -= 1;
 
     task_switch(&Dispatcher_Task);
 }
@@ -379,4 +408,17 @@ int task_join(task_t * task)
     unlock();
 
     return task->exit_code;
+}
+
+
+void task_sleep(int t)
+{
+    lock();
+
+    Current_Task->status = SUSPENDED;
+    Current_Task->waking_time = systime( ) + t;
+    queue_remove((queue_t **) &Ready_Tasks, (queue_t*) Current_Task);
+    queue_append((queue_t **) &Sleeping_Tasks, (queue_t*) Current_Task);
+
+    task_yield();
 }
