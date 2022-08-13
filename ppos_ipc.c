@@ -5,10 +5,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
 extern task_t * Current_Task;
 extern task_t * Ready_Tasks;
-
 
 int sem_create (semaphore_t *sem, int value)
 {
@@ -56,7 +54,9 @@ int sem_up (semaphore_t *sem)
     sem->counter += 1;
     if (sem->counter <= 0) {
         leave_cs(&sem->lock);
-        task_resume(sem->queue, &sem->queue);
+        task_t * t = sem->queue;
+        task_resume(t, &sem->queue);
+        return t->awaking_code;
     }
     return 0;
 }
@@ -66,8 +66,10 @@ int sem_destroy (semaphore_t *sem)
 {
     if (!sem) return -1;
 
-    while(sem->queue)
+    while(sem->queue) {
+        sem->queue->awaking_code = -1;
         task_resume(sem->queue, &sem->queue);
-
+    }
+        
     return 0;
 }

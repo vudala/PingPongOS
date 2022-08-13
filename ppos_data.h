@@ -37,6 +37,7 @@ typedef struct task_t
   struct task_t   *awaiting_tasks;  // tasks que deram join
   int             exit_code;        // código de saída da tarefa
   unsigned        waking_time;      // tempo que deve ser acordado
+  unsigned        awaking_code;     // codigo de resumo
 } task_t ;
 
 // estrutura que define um semáforo
