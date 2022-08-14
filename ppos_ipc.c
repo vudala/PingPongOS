@@ -39,6 +39,7 @@ int sem_down (semaphore_t *sem)
     sem->counter -= 1;
     if (sem->counter < 0) {
         leave_cs(&sem->lock);
+        sem->queue->awaking_code = 0;
         task_suspend(&sem->queue);
     }
 

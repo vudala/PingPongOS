@@ -90,8 +90,6 @@ void update_sleeping()
             task = next;
         } while (task != Sleeping_Tasks && Sleeping_Tasks);
     }
-        
-    unlock();
 }
 
 
