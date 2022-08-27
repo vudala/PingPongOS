@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <string.h>
 
 // Gerenciamento de tasks
 int Id_Counter = 0;
@@ -418,3 +419,108 @@ void task_sleep(int t)
     Current_Task->waking_time = systime( ) + t;
     task_suspend(&Sleeping_Tasks);
 }
+
+
+item_t * create_item(void * msg, int size)
+{
+    item_t * it = malloc(sizeof(item_t));
+    if (!it) return NULL;
+
+    it->prev = NULL;
+    it->next = NULL;
+    it->value = malloc(size);
+    if (!it->value) return NULL;
+
+    memcpy(it->value, msg, size);
+
+    return it;
+}
+
+
+int mqueue_create (mqueue_t *queue, int max_msgs, int msg_size)
+{
+    if (!queue) return -1;
+
+    sem_create(&queue->sem_item, 0);
+    sem_create(&queue->sem_buffer, 1);
+    sem_create(&queue->sem_vaga, max_msgs); 
+    queue->item_size = msg_size;
+    queue->items = NULL;
+    queue->destroyed = 0;
+
+    return 0;
+}
+
+
+int mqueue_send (mqueue_t *queue, void * msg)
+{
+    if (!queue || !msg || queue->destroyed) return -1;
+
+    sem_down(&queue->sem_vaga);
+    sem_down(&queue->sem_buffer);
+
+    if (queue->destroyed) return -1;
+    
+    item_t * it = create_item(msg, queue->item_size);
+    queue_append((queue_t**) &queue->items, (queue_t*) it);
+
+    sem_up(&queue->sem_buffer);
+    sem_up(&queue->sem_item);
+
+    return 0;
+};
+
+
+// recebe uma mensagem da fila
+int mqueue_recv (mqueue_t *queue, void *msg)
+{
+    if (!queue || !msg || queue->destroyed) return -1;
+
+    sem_down(&queue->sem_item);
+    sem_down(&queue->sem_buffer);
+    
+    if (queue->destroyed) return -1;
+
+    item_t * item = queue->items;
+    queue_remove((queue_t**) &queue->items, (queue_t*) item);
+    memcpy(msg, item->value, queue->item_size);
+
+    sem_up(&queue->sem_buffer);
+    sem_up(&queue->sem_vaga);
+    
+    return 0;
+};
+
+
+// destroi a fila, liberando as tarefas bloqueadas
+int mqueue_destroy (mqueue_t *queue)
+{
+    if (!queue) return -1;
+
+    lock();
+
+    while(queue->items) {
+        item_t * it = queue->items;
+        queue_remove((queue_t**) &queue->items, (queue_t*) it);
+        free(it->value);
+        free(it);
+    }
+
+    sem_destroy(&queue->sem_vaga);
+    sem_destroy(&queue->sem_item);
+    sem_destroy(&queue->sem_buffer);
+
+    queue->destroyed = 1;
+
+    unlock();
+
+    return 0;
+};
+
+
+// informa o número de mensagens atualmente na fila
+int mqueue_msgs (mqueue_t *queue)
+{
+    if (!queue) return 0;
+    return queue_size((queue_t*) queue->items);
+};

@@ -60,10 +60,22 @@ typedef struct
   // preencher quando necessário
 } barrier_t ;
 
+
+typedef struct item_t
+{
+    struct item_t *prev, *next;
+    void * value;
+} item_t;
+
 // estrutura que define uma fila de mensagens
 typedef struct
 {
-  // preencher quando necessário
+    semaphore_t sem_buffer;     // mutex
+    semaphore_t sem_item;       // controla se há itens para serem consumidos
+    semaphore_t sem_vaga;       // controla quantos itens pode haver na fila
+    int item_size;              // controla o tamanho dos itens da fila
+    item_t * items;             // armazena os itens da fila
+    int destroyed;              // determina se a fila ja foi destruida
 } mqueue_t ;
 
 #endif
