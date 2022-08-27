@@ -25,10 +25,10 @@ enum ERROR_CODE {
 // Estrutura que define um Task Control Block (TCB)
 typedef struct task_t
 {
-  struct task_t   *prev, *next ;	  // ponteiros para usar em filas
-  unsigned        id ;				      // identificador da tarefa
-  ucontext_t      context ;			    // contexto armazenado da tarefa
-  unsigned        status ;			    // pronta, rodando, suspensa  (0, 1, )
+  struct task_t   *prev, *next ;	// ponteiros para usar em filas
+  unsigned        id ;				// identificador da tarefa
+  ucontext_t      context ;			// contexto armazenado da tarefa
+  unsigned        status ;			// pronta, rodando, suspensa  (0, 1, )
   int             static_prio;      // prioridade estática
   int             dinamic_prio;     // prioridade dinâmica
   unsigned        birth_time;       // horário de criação
