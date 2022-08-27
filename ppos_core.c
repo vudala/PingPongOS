@@ -234,7 +234,6 @@ int task_create(task_t * task, void (*start_routine)(void *), void * arg)
     task->birth_time = systime();
     task->lifetime = 0;
     task->awaiting_tasks = NULL;
-    task->awaking_code = 0;
 
     task->status = NEW;
 
