@@ -7,19 +7,19 @@
 #include <time.h>
 #include <stdio.h>
 
-typedef struct item_t {
-    struct item_t *prev, *next;
+typedef struct message_t {
+    struct message_t *prev, *next;
     int value;
-} item_t;
+} message_t;
 
 
-item_t * buffer = NULL;
+message_t * buffer = NULL;
 semaphore_t s_vaga, s_buffer, s_item;
 
 
-item_t * create_item(int v)
+message_t * c_item(int v)
 {
-    item_t * it = malloc(sizeof(item_t));
+    message_t * it = malloc(sizeof(message_t));
     if (!it) return NULL;
     
     it->value = v;
@@ -40,7 +40,7 @@ void produtor() {
         sem_down (&s_buffer);
         
         // coloca item no buffer
-        item_t * it = create_item(rand() % 100);
+        message_t * it = c_item(rand() % 100);
         queue_append((queue_t**) &buffer, (queue_t*) it);
 
         printf("p%d produziu %d\n", id, it->value);
@@ -60,7 +60,7 @@ void consumidor() {
         sem_down (&s_buffer);
 
         // retira item do buffer
-        item_t * it = buffer;
+        message_t * it = buffer;
         queue_remove((queue_t**) &buffer, (queue_t*) it);
 
         sem_up (&s_buffer);
