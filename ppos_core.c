@@ -484,6 +484,8 @@ int mqueue_recv (mqueue_t *queue, void *msg)
     item_t * item = queue->items;
     queue_remove((queue_t**) &queue->items, (queue_t*) item);
     memcpy(msg, item->value, queue->item_size);
+    free(item->value);
+    free(item);
 
     sem_up(&queue->sem_buffer);
     sem_up(&queue->sem_vaga);
@@ -496,6 +498,7 @@ int mqueue_recv (mqueue_t *queue, void *msg)
 int mqueue_destroy (mqueue_t *queue)
 {
     if (!queue) return -1;
+    if (queue->destroyed) return 0;
 
     lock();
 
